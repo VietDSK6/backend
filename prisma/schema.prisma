@@ -206,6 +206,8 @@ model Club {
   description String?
   cover_image String?
   leader_id   String
+  is_reason_required Boolean @default(false)
+  is_promise_required Boolean @default(false)
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
@@ -218,6 +220,9 @@ model ClubMember {
   club_id   String
   user_id   String
   role      ClubMemberRole @default(MEMBER)
+  status    ClubMemberStatus @default(PENDING)
+  reason    String?
+  promise   String?
   joined_at DateTime       @default(now())
 
   club Club @relation(fields: [club_id], references: [id], onDelete: Cascade)
@@ -229,6 +234,12 @@ model ClubMember {
 enum ClubMemberRole {
   LEADER
   MEMBER
+}
+
+enum ClubMemberStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 // ─── Rewards ─────────────────────────────────────────

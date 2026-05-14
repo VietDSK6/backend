@@ -56,6 +56,8 @@ export const create = async (data: {
   name: string;
   description?: string;
   leader_id: string;
+  is_reason_required?: boolean;
+  is_promise_required?: boolean;
 }, coverImage?: Buffer) => {
   // Verify leader exists
   const leader = await prisma.user.findUnique({ where: { id: data.leader_id } });
@@ -66,6 +68,8 @@ export const create = async (data: {
       name: data.name,
       description: data.description,
       leader_id: data.leader_id,
+      is_reason_required: data.is_reason_required ?? false,
+      is_promise_required: data.is_promise_required ?? false,
     },
   });
 
@@ -75,6 +79,7 @@ export const create = async (data: {
       club_id: club.id,
       user_id: data.leader_id,
       role: 'LEADER',
+      status: 'APPROVED',
     },
   });
 
@@ -87,6 +92,8 @@ export const update = async (
     name: string;
     description: string;
     leader_id: string;
+    is_reason_required: boolean;
+    is_promise_required: boolean;
   }>,
 ) => {
   const club = await prisma.club.findUnique({ where: { id } });
@@ -112,11 +119,11 @@ export const update = async (
       if (existing) {
         await tx.clubMember.update({
           where: { id: existing.id },
-          data: { role: 'LEADER' },
+          data: { role: 'LEADER', status: 'APPROVED' },
         });
       } else {
         await tx.clubMember.create({
-          data: { club_id: id, user_id: data.leader_id!, role: 'LEADER' },
+          data: { club_id: id, user_id: data.leader_id!, role: 'LEADER', status: 'APPROVED' },
         });
       }
 
@@ -147,17 +154,44 @@ export const remove = async (id: string) => {
   await prisma.club.delete({ where: { id } });
 };
 
-export const join = async (clubId: string, userId: string) => {
+export const join = async (clubId: string, userId: string, data: { reason?: string; promise?: string }) => {
   const club = await prisma.club.findUnique({ where: { id: clubId } });
   if (!club) throw new AppError('CLB không tồn tại', 404);
+
+  if (club.is_reason_required && !data.reason?.trim()) {
+    throw new AppError('Vui lòng nhập lí do tham gia CLB', 400);
+  }
+  if (club.is_promise_required && !data.promise?.trim()) {
+    throw new AppError('Vui lòng nhập lời hứa khi tham gia CLB', 400);
+  }
 
   const existing = await prisma.clubMember.findUnique({
     where: { club_id_user_id: { club_id: clubId, user_id: userId } },
   });
-  if (existing) throw new AppError('Bạn đã là thành viên của CLB này', 400);
+  
+  if (existing) {
+    if (existing.status === 'APPROVED') {
+      throw new AppError('Bạn đã là thành viên của CLB này', 400);
+    }
+    if (existing.status === 'PENDING') {
+      throw new AppError('Đơn đăng ký của bạn đang chờ duyệt', 400);
+    }
+    // If REJECTED, update to PENDING
+    return prisma.clubMember.update({
+      where: { id: existing.id },
+      data: { status: 'PENDING', reason: data.reason, promise: data.promise },
+    });
+  }
 
   return prisma.clubMember.create({
-    data: { club_id: clubId, user_id: userId, role: 'MEMBER' },
+    data: { 
+      club_id: clubId, 
+      user_id: userId, 
+      role: 'MEMBER',
+      status: 'PENDING',
+      reason: data.reason,
+      promise: data.promise
+    },
   });
 };
 
@@ -182,7 +216,7 @@ export const getMembers = async (clubId: string) => {
   if (!club) throw new AppError('CLB không tồn tại', 404);
 
   return prisma.clubMember.findMany({
-    where: { club_id: clubId },
+    where: { club_id: clubId, status: 'APPROVED' },
     include: {
       user: { select: { id: true, full_name: true, avatar_url: true, email: true } },
     },
@@ -210,5 +244,66 @@ export const kickMember = async (clubId: string, leaderId: string, targetUserId:
   if (!member) throw new AppError('Người dùng này không phải thành viên của CLB', 404);
 
   await prisma.clubMember.delete({ where: { id: member.id } });
+};
+
+export const getPendingApplications = async (clubId: string, leaderId: string) => {
+  const club = await prisma.club.findUnique({ where: { id: clubId } });
+  if (!club) throw new AppError('CLB không tồn tại', 404);
+
+  if (club.leader_id !== leaderId) {
+    throw new AppError('Chỉ trưởng CLB mới có thể xem danh sách đơn đăng ký', 403);
+  }
+
+  return prisma.clubMember.findMany({
+    where: { club_id: clubId, status: 'PENDING' },
+    include: {
+      user: { select: { id: true, full_name: true, avatar_url: true, email: true } },
+    },
+    orderBy: { joined_at: 'asc' },
+  });
+};
+
+export const approveApplication = async (clubId: string, leaderId: string, targetUserId: string) => {
+  const club = await prisma.club.findUnique({ where: { id: clubId } });
+  if (!club) throw new AppError('CLB không tồn tại', 404);
+
+  if (club.leader_id !== leaderId) {
+    throw new AppError('Chỉ trưởng CLB mới có thể duyệt đơn', 403);
+  }
+
+  const member = await prisma.clubMember.findUnique({
+    where: { club_id_user_id: { club_id: clubId, user_id: targetUserId } },
+  });
+
+  if (!member || member.status !== 'PENDING') {
+    throw new AppError('Đơn đăng ký không tồn tại hoặc đã được xử lý', 404);
+  }
+
+  return prisma.clubMember.update({
+    where: { id: member.id },
+    data: { status: 'APPROVED' },
+  });
+};
+
+export const rejectApplication = async (clubId: string, leaderId: string, targetUserId: string) => {
+  const club = await prisma.club.findUnique({ where: { id: clubId } });
+  if (!club) throw new AppError('CLB không tồn tại', 404);
+
+  if (club.leader_id !== leaderId) {
+    throw new AppError('Chỉ trưởng CLB mới có thể từ chối đơn', 403);
+  }
+
+  const member = await prisma.clubMember.findUnique({
+    where: { club_id_user_id: { club_id: clubId, user_id: targetUserId } },
+  });
+
+  if (!member || member.status !== 'PENDING') {
+    throw new AppError('Đơn đăng ký không tồn tại hoặc đã được xử lý', 404);
+  }
+
+  return prisma.clubMember.update({
+    where: { id: member.id },
+    data: { status: 'REJECTED' },
+  });
 };
 

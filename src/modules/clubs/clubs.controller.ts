@@ -53,8 +53,8 @@ export const remove = async (req: Request, res: Response, next: NextFunction) =>
 
 export const join = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const member = await clubsService.join(req.params.id as string, req.user!.id);
-    sendSuccess(res, member, 'Tham gia CLB thành công', 201);
+    const member = await clubsService.join(req.params.id as string, req.user!.id, req.body);
+    sendSuccess(res, member, 'Gửi đơn tham gia CLB thành công', 201);
   } catch (error) {
     next(error);
   }
@@ -82,6 +82,33 @@ export const kickMember = async (req: Request, res: Response, next: NextFunction
   try {
     await clubsService.kickMember(req.params.id as string, req.user!.id, req.params.userId as string);
     sendSuccess(res, null, 'Kick thành viên thành công');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getPendingApplications = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const applications = await clubsService.getPendingApplications(req.params.id as string, req.user!.id);
+    sendSuccess(res, applications);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const approveApplication = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const member = await clubsService.approveApplication(req.params.id as string, req.user!.id, req.params.userId as string);
+    sendSuccess(res, member, 'Duyệt đơn tham gia thành công');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const rejectApplication = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const member = await clubsService.rejectApplication(req.params.id as string, req.user!.id, req.params.userId as string);
+    sendSuccess(res, member, 'Từ chối đơn tham gia thành công');
   } catch (error) {
     next(error);
   }
