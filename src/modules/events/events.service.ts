@@ -98,10 +98,12 @@ export const create = async (
     max_slots: number;
     activity_type_id: string;
     fixed_point?: number;
+    cover_image?: string;
+    cover_url?: string;
   },
   coverImage?: Buffer,
 ) => {
-  let cover_image: string | undefined;
+  let cover_image: string | undefined = data.cover_image || data.cover_url;
   if (coverImage) {
     cover_image = await uploadImage(coverImage, 'events');
   }
@@ -136,6 +138,7 @@ export const update = async (
     max_slots: number;
     activity_type_id: string;
     cover_image: string;
+    cover_url: string;
     fixed_point: number;
   }>,
 ) => {
@@ -144,6 +147,11 @@ export const update = async (
   if (event.admin_id !== adminId) throw new AppError('Không có quyền chỉnh sửa', 403);
 
   const updateData: any = { ...data };
+  if (data.cover_url && !data.cover_image) {
+    updateData.cover_image = data.cover_url;
+  }
+  delete updateData.cover_url;
+
   if (data.start_date) updateData.start_date = new Date(data.start_date);
   if (data.end_date) updateData.end_date = new Date(data.end_date);
 
