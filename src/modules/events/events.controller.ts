@@ -102,7 +102,7 @@ export const addManager = async (req: Request, res: Response, next: NextFunction
 
 export const removeManager = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    await eventsService.removeManager(req.params.id as string, req.params.userId, req.user!.id, req.user!.role);
+    await eventsService.removeManager(req.params.id as string, req.params.userId as string, req.user!.id, req.user!.role);
     sendSuccess(res, null, 'Xóa quản lý thành công');
   } catch (error) {
     next(error);
