@@ -13,9 +13,9 @@ router.use(authenticate);
 router.post('/', requireRole('STUDENT'), validate(applySchema), applicationsController.apply);
 router.get('/my', requireRole('STUDENT'), applicationsController.getMyApplications);
 
-// Admin
-router.patch('/:id/approve', requireRole('ADMIN'), applicationsController.approve);
-router.patch('/:id/reject', requireRole('ADMIN'), applicationsController.reject);
-router.patch('/:id/complete', requireRole('ADMIN'), applicationsController.complete);
+// Admin or Event Manager
+router.patch('/:id/approve', applicationsController.approve);
+router.patch('/:id/reject', applicationsController.reject);
+router.patch('/:id/complete', applicationsController.complete);
 
 export default router;

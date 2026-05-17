@@ -18,7 +18,10 @@ const publicUserSelect = {
 export const getMe = async (userId: string) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: publicUserSelect,
+    select: {
+      ...publicUserSelect,
+      managed_events: { select: { id: true } },
+    },
   });
   if (!user) throw new AppError('Người dùng không tồn tại', 404);
 

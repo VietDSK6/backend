@@ -9,7 +9,7 @@ const router = Router();
 
 router.use(authenticate);
 
-router.post('/', requireRole('ADMIN'), validate(createReviewSchema), reviewsController.create);
+router.post('/', validate(createReviewSchema), reviewsController.create);
 router.get('/student/:id', reviewsController.getByStudent);
 
 export default router;

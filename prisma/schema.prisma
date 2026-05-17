@@ -32,6 +32,7 @@ model User {
   led_clubs           Club[]               @relation("ClubLeader")
   club_members        ClubMember[]
   reward_transactions RewardTransaction[]
+  managed_events      Event[]              @relation("EventManagers")
 }
 
 enum Role {
@@ -71,6 +72,7 @@ model Event {
   activity_type ActivityType? @relation(fields: [activity_type_id], references: [id])
   applications  Application[]
   reviews       Review[]
+  managers      User[]        @relation("EventManagers")
 }
 
 enum EventStatus {

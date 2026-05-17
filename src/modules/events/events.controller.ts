@@ -11,6 +11,7 @@ export const list = async (req: Request, res: Response, next: NextFunction) => {
       activity_type_id: req.query.activity_type_id as string,
       status: req.query.status as string,
       is_applied: req.query.is_applied === 'true',
+      is_managed: req.query.is_managed === 'true',
       userId: req.user?.id,
       date_from: req.query.date_from as string,
       date_to: req.query.date_to as string,
@@ -63,7 +64,7 @@ export const remove = async (req: Request, res: Response, next: NextFunction) =>
 
 export const getApplications = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const applications = await eventsService.getApplications(req.params.id as string);
+    const applications = await eventsService.getApplications(req.params.id as string, req.user!.id, req.user!.role);
     sendSuccess(res, applications);
   } catch (error) {
     next(error);
@@ -72,10 +73,37 @@ export const getApplications = async (req: Request, res: Response, next: NextFun
 
 export const exportExcel = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const buffer = await exportService.exportEventParticipants(req.params.id as string, req.user!.id);
+    const buffer = await exportService.exportEventParticipants(req.params.id as string, req.user!.id, req.user!.role);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename=participants.xlsx');
     res.send(buffer);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getManagers = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const managers = await eventsService.getManagers(req.params.id as string, req.user!.id, req.user!.role);
+    sendSuccess(res, managers);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const addManager = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await eventsService.addManager(req.params.id as string, req.body.user_id, req.user!.id, req.user!.role);
+    sendSuccess(res, null, 'Thêm quản lý thành công');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const removeManager = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await eventsService.removeManager(req.params.id as string, req.params.userId, req.user!.id, req.user!.role);
+    sendSuccess(res, null, 'Xóa quản lý thành công');
   } catch (error) {
     next(error);
   }

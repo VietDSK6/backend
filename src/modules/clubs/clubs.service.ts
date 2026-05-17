@@ -25,7 +25,11 @@ export const list = async (query: ListClubsQuery) => {
       orderBy: { created_at: 'desc' },
       include: {
         leader: { select: { id: true, full_name: true, avatar_url: true } },
-        _count: { select: { members: true } },
+        _count: { 
+          select: { 
+            members: { where: { status: 'APPROVED' } } 
+          } 
+        },
       },
     }),
     prisma.club.count({ where }),
@@ -40,6 +44,7 @@ export const getById = async (id: string) => {
     include: {
       leader: { select: { id: true, full_name: true, avatar_url: true, email: true } },
       members: {
+        where: { status: 'APPROVED' },
         include: {
           user: { select: { id: true, full_name: true, avatar_url: true, email: true } },
         },
@@ -95,9 +100,15 @@ export const update = async (
     is_reason_required: boolean;
     is_promise_required: boolean;
   }>,
+  userId: string,
+  userRole: string
 ) => {
   const club = await prisma.club.findUnique({ where: { id } });
   if (!club) throw new AppError('CLB không tồn tại', 404);
+
+  if (userRole !== 'ADMIN' && club.leader_id !== userId) {
+    throw new AppError('Bạn không có quyền chỉnh sửa CLB này', 403);
+  }
 
   // If changing leader
   if (data.leader_id && data.leader_id !== club.leader_id) {

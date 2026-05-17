@@ -4,7 +4,7 @@ import { sendSuccess } from '../../utils/response';
 
 export const create = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const review = await reviewsService.create(req.user!.id, req.body);
+    const review = await reviewsService.create(req.user!.id, req.user!.role, req.body);
     sendSuccess(res, review, 'Đánh giá thành công', 201);
   } catch (error) {
     next(error);

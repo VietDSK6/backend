@@ -2,10 +2,17 @@ import ExcelJS from 'exceljs';
 import prisma from '../config/database';
 import { AppError } from '../utils/app-error';
 
-export const exportEventParticipants = async (eventId: string, adminId: string) => {
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
+export const exportEventParticipants = async (eventId: string, userId: string, userRole: string) => {
+  const event = await prisma.event.findUnique({ 
+    where: { id: eventId },
+    include: { managers: { select: { id: true } } }
+  });
   if (!event) throw new AppError('Sự kiện không tồn tại', 404);
-  if (event.admin_id !== adminId) throw new AppError('Không có quyền', 403);
+
+  const isManager = event.managers.some((m) => m.id === userId);
+  if (userRole !== 'ADMIN' && event.admin_id !== userId && !isManager) {
+    throw new AppError('Không có quyền export danh sách', 403);
+  }
 
   const applications = await prisma.application.findMany({
     where: { event_id: eventId },

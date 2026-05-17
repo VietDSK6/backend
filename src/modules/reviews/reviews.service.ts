@@ -4,18 +4,20 @@ import { sendReviewNotificationEmail } from '../../services/email.service';
 
 export const create = async (
   adminId: string,
+  userRole: string,
   data: { application_id: string; rating_score: number; feedback_text?: string },
 ) => {
   const application = await prisma.application.findUnique({
     where: { id: data.application_id },
-    include: { event: true, student: true },
+    include: { event: { include: { managers: { select: { id: true } } } }, student: true },
   });
 
   if (!application) throw new AppError('Đơn đăng ký không tồn tại', 404);
   if (application.status !== 'COMPLETED') {
     throw new AppError('Chỉ có thể đánh giá đơn đã hoàn thành', 400);
   }
-  if (application.event.admin_id !== adminId) {
+  const isManager = application.event.managers.some((m) => m.id === adminId);
+  if (userRole !== 'ADMIN' && application.event.admin_id !== adminId && !isManager) {
     throw new AppError('Không có quyền đánh giá', 403);
   }
 

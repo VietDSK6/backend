@@ -35,7 +35,12 @@ export const create = async (req: Request, res: Response, next: NextFunction) =>
 
 export const update = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const club = await clubsService.update(req.params.id as string, req.body);
+    const club = await clubsService.update(
+      req.params.id as string, 
+      req.body, 
+      req.user!.id, 
+      req.user!.role
+    );
     sendSuccess(res, club, 'Cập nhật CLB thành công');
   } catch (error) {
     next(error);

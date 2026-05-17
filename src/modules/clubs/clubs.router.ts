@@ -23,7 +23,6 @@ router.post(
 router.put(
   '/:id',
   authenticate,
-  requireRole('ADMIN'),
   validate(updateClubSchema),
   clubsController.update,
 );

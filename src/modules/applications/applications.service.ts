@@ -38,8 +38,8 @@ export const getMyApplications = async (studentId: string) => {
   });
 };
 
-export const approve = async (applicationId: string) => {
-  const app = await getApplicationWithEvent(applicationId);
+export const approve = async (applicationId: string, userId: string, userRole: string) => {
+  const app = await getApplicationWithEvent(applicationId, userId, userRole);
   if (app.status !== 'PENDING') {
     throw new AppError('Chỉ có thể duyệt đơn đang chờ', 400);
   }
@@ -68,8 +68,8 @@ export const approve = async (applicationId: string) => {
   return updated;
 };
 
-export const reject = async (applicationId: string) => {
-  const app = await getApplicationWithEvent(applicationId);
+export const reject = async (applicationId: string, userId: string, userRole: string) => {
+  const app = await getApplicationWithEvent(applicationId, userId, userRole);
   if (app.status !== 'PENDING') {
     throw new AppError('Chỉ có thể từ chối đơn đang chờ', 400);
   }
@@ -96,8 +96,8 @@ export const reject = async (applicationId: string) => {
   return updated;
 };
 
-export const complete = async (applicationId: string) => {
-  const app = await getApplicationWithEvent(applicationId);
+export const complete = async (applicationId: string, userId: string, userRole: string) => {
+  const app = await getApplicationWithEvent(applicationId, userId, userRole);
   if (app.status !== 'APPROVED') {
     throw new AppError('Chỉ có thể hoàn thành đơn đã duyệt', 400);
   }
@@ -129,11 +129,17 @@ export const complete = async (applicationId: string) => {
 
 // ─── Helper ──────────────────────────────────────────
 
-async function getApplicationWithEvent(applicationId: string) {
+async function getApplicationWithEvent(applicationId: string, userId: string, userRole: string) {
   const app = await prisma.application.findUnique({
     where: { id: applicationId },
-    include: { event: true },
+    include: { event: { include: { managers: { select: { id: true } } } } },
   });
   if (!app) throw new AppError('Đơn đăng ký không tồn tại', 404);
+
+  const isManager = app.event.managers.some((m) => m.id === userId);
+  if (userRole !== 'ADMIN' && app.event.admin_id !== userId && !isManager) {
+    throw new AppError('Không có quyền quản lý đơn đăng ký này', 403);
+  }
+
   return app;
 }

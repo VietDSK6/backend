@@ -29,7 +29,12 @@ router.put(
   eventsController.update,
 );
 router.delete('/:id', authenticate, requireRole('ADMIN'), eventsController.remove);
-router.get('/:id/applications', authenticate, requireRole('ADMIN'), eventsController.getApplications);
-router.get('/:id/export', authenticate, requireRole('ADMIN'), eventsController.exportExcel);
+router.get('/:id/applications', authenticate, eventsController.getApplications);
+router.get('/:id/export', authenticate, eventsController.exportExcel);
+
+// Event Managers (checked in service)
+router.get('/:id/managers', authenticate, eventsController.getManagers);
+router.post('/:id/managers', authenticate, eventsController.addManager);
+router.delete('/:id/managers/:userId', authenticate, eventsController.removeManager);
 
 export default router;

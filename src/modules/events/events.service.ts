@@ -15,6 +15,7 @@ interface ListEventsQuery {
   date_to?: string;
   page?: number;
   limit?: number;
+  is_managed?: boolean;
 }
 
 export const list = async (query: ListEventsQuery) => {
@@ -31,7 +32,20 @@ export const list = async (query: ListEventsQuery) => {
     where.activity_type_id = query.activity_type_id;
   }
   if (query.status) {
-    where.status = query.status as any;
+    const now = new Date();
+    if (query.status === 'UPCOMING') {
+      where.start_date = { gt: now };
+      where.status = { not: 'CANCELLED' };
+    } else if (query.status === 'ONGOING') {
+      where.start_date = { lte: now };
+      where.end_date = { gte: now };
+      where.status = { not: 'CANCELLED' };
+    } else if (query.status === 'COMPLETED') {
+      where.end_date = { lt: now };
+      where.status = { not: 'CANCELLED' };
+    } else {
+      where.status = query.status as any;
+    }
   }
   if (query.date_from || query.date_to) {
     if (query.date_from) {
@@ -48,6 +62,12 @@ export const list = async (query: ListEventsQuery) => {
       some: { student_id: query.userId },
     };
   }
+  if (query.is_managed && query.userId) {
+    where.OR = [
+      { admin_id: query.userId },
+      { managers: { some: { id: query.userId } } },
+    ];
+  }
 
   const [events, total] = await Promise.all([
     prisma.event.findMany({
@@ -63,7 +83,18 @@ export const list = async (query: ListEventsQuery) => {
     prisma.event.count({ where }),
   ]);
 
-  return paginatedResponse(events, total, query.page || 1, query.limit || 10);
+  const now = new Date();
+  const dynamicEvents = events.map(event => {
+    let dynamicStatus = event.status;
+    if (event.status !== 'CANCELLED') {
+      if (now < event.start_date) dynamicStatus = 'UPCOMING';
+      else if (now >= event.start_date && now <= event.end_date) dynamicStatus = 'ONGOING';
+      else dynamicStatus = 'COMPLETED';
+    }
+    return { ...event, status: dynamicStatus };
+  });
+
+  return paginatedResponse(dynamicEvents, total, query.page || 1, query.limit || 10);
 };
 
 export const getById = async (id: string, userId?: string) => {
@@ -84,7 +115,16 @@ export const getById = async (id: string, userId?: string) => {
   ]);
 
   if (!event) throw new AppError('Sự kiện không tồn tại', 404);
-  return { ...event, is_applied: application !== null };
+
+  let dynamicStatus = event.status;
+  const now = new Date();
+  if (event.status !== 'CANCELLED') {
+    if (now < event.start_date) dynamicStatus = 'UPCOMING';
+    else if (now >= event.start_date && now <= event.end_date) dynamicStatus = 'ONGOING';
+    else dynamicStatus = 'COMPLETED';
+  }
+
+  return { ...event, status: dynamicStatus, is_applied: application !== null };
 };
 
 export const create = async (
@@ -173,9 +213,17 @@ export const remove = async (id: string, adminId: string) => {
   await prisma.event.delete({ where: { id } });
 };
 
-export const getApplications = async (eventId: string) => {
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
+export const getApplications = async (eventId: string, userId: string, userRole: string) => {
+  const event = await prisma.event.findUnique({ 
+    where: { id: eventId },
+    include: { managers: { select: { id: true } } }
+  });
   if (!event) throw new AppError('Sự kiện không tồn tại', 404);
+
+  const isManager = event.managers.some((m) => m.id === userId);
+  if (userRole !== 'ADMIN' && event.admin_id !== userId && !isManager) {
+    throw new AppError('Không có quyền xem danh sách', 403);
+  }
 
   return prisma.application.findMany({
     where: { event_id: eventId },
@@ -184,5 +232,49 @@ export const getApplications = async (eventId: string) => {
       review: true,
     },
     orderBy: { applied_at: 'desc' },
+  });
+};
+
+export const getManagers = async (eventId: string, userId: string, userRole: string) => {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: { managers: { select: { id: true, full_name: true, email: true, avatar_url: true } } }
+  });
+  if (!event) throw new AppError('Sự kiện không tồn tại', 404);
+
+  const isManager = event.managers.some((m) => m.id === userId);
+  if (userRole !== 'ADMIN' && event.admin_id !== userId && !isManager) {
+    throw new AppError('Không có quyền xem danh sách quản lý', 403);
+  }
+
+  return event.managers;
+};
+
+export const addManager = async (eventId: string, targetUserId: string, userId: string, userRole: string) => {
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event) throw new AppError('Sự kiện không tồn tại', 404);
+  if (userRole !== 'ADMIN' && event.admin_id !== userId) {
+    throw new AppError('Chỉ người tạo sự kiện hoặc Admin mới có quyền thêm quản lý', 403);
+  }
+
+  const targetUser = await prisma.user.findUnique({ where: { id: targetUserId } });
+  if (!targetUser) throw new AppError('Người dùng không tồn tại', 404);
+
+  await prisma.event.update({
+    where: { id: eventId },
+    data: { managers: { connect: { id: targetUserId } } }
+  });
+};
+
+export const removeManager = async (eventId: string, targetUserId: string, userId: string, userRole: string) => {
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event) throw new AppError('Sự kiện không tồn tại', 404);
+  if (userRole !== 'ADMIN' && event.admin_id !== userId) {
+    throw new AppError('Chỉ người tạo sự kiện hoặc Admin mới có quyền xóa quản lý', 403);
+  }
+
+  await prisma.event.update({
+    where: { id: eventId },
+    data: { managers: { disconnect: { id: targetUserId } } }
   });
 };
