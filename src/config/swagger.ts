@@ -95,6 +95,8 @@ const options: swaggerJsdoc.Options = {
             role: { type: 'string', enum: ['STUDENT', 'ADMIN'] },
             reputation_score: { type: 'number' },
             total_hours: { type: 'number' },
+            total_points: { type: 'integer' },
+            current_points: { type: 'integer' },
             created_at: { type: 'string', format: 'date-time' },
           },
         },
@@ -161,6 +163,11 @@ const options: swaggerJsdoc.Options = {
             status: { type: 'string', enum: ['PENDING', 'APPROVED', 'REJECTED', 'COMPLETED'] },
             applied_at: { type: 'string', format: 'date-time' },
             updated_at: { type: 'string', format: 'date-time' },
+            student: { $ref: '#/components/schemas/UserPublic' },
+            review: {
+              nullable: true,
+              allOf: [{ $ref: '#/components/schemas/Review' }],
+            },
           },
         },
         ApplyInput: {
@@ -519,7 +526,7 @@ const options: swaggerJsdoc.Options = {
           summary: 'Danh sách đơn đăng ký của sự kiện (Admin)',
           security: [{ BearerAuth: [] }],
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-          responses: { 200: { description: 'OK' }, 403: { description: 'Không có quyền' } },
+          responses: { 200: { description: 'OK', content: { 'application/json': { schema: { allOf: [{ $ref: '#/components/schemas/SuccessResponse' }, { properties: { data: { type: 'array', items: { $ref: '#/components/schemas/Application' } } } }] } } } }, 403: { description: 'Không có quyền' } },
         },
       },
       '/events/{id}/export': {

@@ -18,6 +18,19 @@ interface ListEventsQuery {
   is_managed?: boolean;
 }
 
+const applicationStudentSelect = {
+  id: true,
+  email: true,
+  full_name: true,
+  avatar_url: true,
+  role: true,
+  reputation_score: true,
+  total_hours: true,
+  total_points: true,
+  current_points: true,
+  created_at: true,
+};
+
 export const list = async (query: ListEventsQuery) => {
   const { skip, take } = paginate(query.page, query.limit);
 
@@ -228,7 +241,7 @@ export const getApplications = async (eventId: string, userId: string, userRole:
   return prisma.application.findMany({
     where: { event_id: eventId },
     include: {
-      student: { select: { id: true, full_name: true, email: true, avatar_url: true } },
+      student: { select: applicationStudentSelect },
       review: true,
     },
     orderBy: { applied_at: 'desc' },
