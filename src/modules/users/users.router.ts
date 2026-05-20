@@ -11,6 +11,7 @@ router.use(authenticate); // All user routes require auth
 router.get('/me', usersController.getMe);
 router.put('/me', validate(updateProfileSchema), usersController.updateMe);
 router.get('/me/points-summary', usersController.getMyPointsSummary);
+router.get('/me/profile-summary', usersController.getProfileSummary);
 router.get('/me/dashboard-summary', usersController.getDashboardSummary);
 router.get('/leaderboard', usersController.getLeaderboard);
 

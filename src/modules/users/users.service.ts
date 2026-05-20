@@ -15,18 +15,31 @@ const publicUserSelect = {
   created_at: true,
 };
 
+const profileUserSelect = {
+  ...publicUserSelect,
+  phone: true,
+  student_id: true,
+  faculty: true,
+  class_name: true,
+  bio: true,
+  birthday: true,
+  social_link: true,
+  emergency_contact_name: true,
+  emergency_contact_phone: true,
+};
+
 export const getMe = async (userId: string) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
-      ...publicUserSelect,
+      ...profileUserSelect,
       managed_events: { select: { id: true } },
     },
   });
   if (!user) throw new AppError('Người dùng không tồn tại', 404);
 
   const clubMemberships = await prisma.clubMember.findMany({
-    where: { user_id: userId },
+    where: { user_id: userId, status: 'APPROVED' },
     include: {
       club: {
         include: {
@@ -46,19 +59,34 @@ export const getMe = async (userId: string) => {
   return { ...user, clubs };
 };
 
-export const updateMe = async (userId: string, data: { full_name?: string; avatar_url?: string }) => {
+type UpdateMeData = {
+  full_name?: string;
+  avatar_url?: string;
+  phone?: string | null;
+  student_id?: string | null;
+  faculty?: string | null;
+  class_name?: string | null;
+  bio?: string | null;
+  birthday?: Date | null;
+  social_link?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+};
+
+export const updateMe = async (userId: string, data: UpdateMeData) => {
   const user = await prisma.user.update({
     where: { id: userId },
     data,
-    select: publicUserSelect,
+    select: profileUserSelect,
   });
   return user;
 };
 
-export const getById = async (userId: string) => {
+export const getById = async (userId: string, requester?: { id: string; role: string }) => {
+  const canViewProfile = requester?.role === 'ADMIN' || requester?.id === userId;
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: publicUserSelect,
+    select: canViewProfile ? profileUserSelect : publicUserSelect,
   });
   if (!user) throw new AppError('Người dùng không tồn tại', 404);
   return user;
@@ -110,7 +138,7 @@ export const listUsers = async (
   const [users, total] = await Promise.all([
     prisma.user.findMany({
       where,
-      select: publicUserSelect,
+      select: profileUserSelect,
       skip,
       take: limit,
       orderBy: { [safeSort]: sortOrder },
@@ -122,7 +150,7 @@ export const listUsers = async (
 
   const memberships = userIds.length > 0
     ? await prisma.clubMember.findMany({
-        where: { user_id: { in: userIds } },
+        where: { user_id: { in: userIds }, status: 'APPROVED' },
         include: {
           club: {
             select: { id: true, name: true, cover_image: true },
@@ -158,7 +186,7 @@ export const updateUserRole = async (userId: string, role: 'ADMIN' | 'STUDENT') 
   return prisma.user.update({
     where: { id: userId },
     data: { role },
-    select: publicUserSelect,
+    select: profileUserSelect,
   });
 };
 
@@ -381,5 +409,134 @@ export const getDashboardSummary = async (userId: string) => {
     points_by_month,
     upcoming_events,
     recent_applications
+  };
+};
+
+export const getProfileSummary = async (userId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { total_hours: true },
+  });
+  if (!user) throw new AppError('Người dùng không tồn tại', 404);
+
+  const now = new Date();
+  const [
+    completed_events,
+    pending_applications,
+    upcoming_events,
+    latest_completed_events,
+    recent_applications,
+    points_summary,
+    earnedBadges,
+    allBadges,
+  ] = await Promise.all([
+    prisma.application.count({
+      where: { student_id: userId, status: 'COMPLETED' },
+    }),
+    prisma.application.count({
+      where: { student_id: userId, status: 'PENDING' },
+    }),
+    prisma.application.findMany({
+      where: {
+        student_id: userId,
+        status: 'APPROVED',
+        event: {
+          status: { in: ['UPCOMING', 'ONGOING'] },
+          end_date: { gte: now },
+        },
+      },
+      orderBy: { event: { start_date: 'asc' } },
+      take: 3,
+      include: {
+        event: {
+          select: {
+            id: true,
+            title: true,
+            cover_image: true,
+            location: true,
+            start_date: true,
+            end_date: true,
+            status: true,
+            fixed_point: true,
+            activity_type: { select: { id: true, name: true } },
+          },
+        },
+      },
+    }),
+    prisma.application.findMany({
+      where: { student_id: userId, status: 'COMPLETED' },
+      orderBy: { updated_at: 'desc' },
+      take: 3,
+      include: {
+        event: {
+          select: {
+            id: true,
+            title: true,
+            cover_image: true,
+            location: true,
+            start_date: true,
+            end_date: true,
+            status: true,
+            fixed_point: true,
+            activity_type: { select: { id: true, name: true } },
+          },
+        },
+      },
+    }),
+    prisma.application.findMany({
+      where: { student_id: userId },
+      orderBy: { applied_at: 'desc' },
+      take: 5,
+      include: {
+        event: {
+          select: {
+            id: true,
+            title: true,
+            cover_image: true,
+            start_date: true,
+            end_date: true,
+            status: true,
+          },
+        },
+      },
+    }),
+    getMyPointsSummary(userId),
+    prisma.userBadge.findMany({
+      where: { user_id: userId },
+      include: { badge: true },
+      orderBy: { earned_at: 'desc' },
+    }),
+    prisma.badge.findMany({
+      orderBy: [{ required_hours: 'asc' }, { name: 'asc' }],
+    }),
+  ]);
+
+  const earnedBadgeIds = new Set(earnedBadges.map((ub) => ub.badge_id));
+  const nextBadge = allBadges.find((badge) => !badge.activity_type_id && !earnedBadgeIds.has(badge.id)) ?? null;
+
+  return {
+    completed_events,
+    pending_applications,
+    upcoming_events,
+    latest_completed_events,
+    recent_applications,
+    points_summary,
+    badges_summary: {
+      earned_count: earnedBadges.length,
+      total_count: allBadges.length,
+      earned_badges: earnedBadges.map((ub) => ({
+        ...ub.badge,
+        earned_at: ub.earned_at,
+      })),
+      next_badge: nextBadge
+        ? {
+            ...nextBadge,
+            progress_percent: nextBadge.required_hours > 0
+              ? Math.min(100, Math.round((user.total_hours / nextBadge.required_hours) * 100))
+              : 100,
+            remaining_hours: Math.max(0, nextBadge.required_hours - user.total_hours),
+          }
+        : null,
+    },
   };
 };

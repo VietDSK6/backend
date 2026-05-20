@@ -16,6 +16,15 @@ model User {
   role             Role     @default(STUDENT)
   full_name        String
   avatar_url       String?
+  phone            String?
+  student_id       String?  @unique
+  faculty          String?
+  class_name       String?
+  bio              String?
+  birthday         DateTime?
+  social_link      String?
+  emergency_contact_name  String?
+  emergency_contact_phone String?
   reputation_score Float    @default(0)
   total_hours      Float    @default(0)
   total_points     Int      @default(0)

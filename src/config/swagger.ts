@@ -92,6 +92,15 @@ const options: swaggerJsdoc.Options = {
             email: { type: 'string', format: 'email' },
             full_name: { type: 'string' },
             avatar_url: { type: 'string', nullable: true },
+            phone: { type: 'string', nullable: true },
+            student_id: { type: 'string', nullable: true },
+            faculty: { type: 'string', nullable: true },
+            class_name: { type: 'string', nullable: true },
+            bio: { type: 'string', nullable: true },
+            birthday: { type: 'string', format: 'date-time', nullable: true },
+            social_link: { type: 'string', format: 'uri', nullable: true },
+            emergency_contact_name: { type: 'string', nullable: true },
+            emergency_contact_phone: { type: 'string', nullable: true },
             role: { type: 'string', enum: ['STUDENT', 'ADMIN'] },
             reputation_score: { type: 'number' },
             total_hours: { type: 'number' },
@@ -105,6 +114,15 @@ const options: swaggerJsdoc.Options = {
           properties: {
             full_name: { type: 'string' },
             avatar_url: { type: 'string', format: 'uri' },
+            phone: { type: 'string', nullable: true },
+            student_id: { type: 'string', nullable: true },
+            faculty: { type: 'string', nullable: true },
+            class_name: { type: 'string', nullable: true },
+            bio: { type: 'string', nullable: true },
+            birthday: { type: 'string', format: 'date-time', nullable: true },
+            social_link: { type: 'string', format: 'uri', nullable: true },
+            emergency_contact_name: { type: 'string', nullable: true },
+            emergency_contact_phone: { type: 'string', nullable: true },
           },
         },
 
@@ -308,6 +326,33 @@ const options: swaggerJsdoc.Options = {
             rewards_redeemed: { type: 'integer' },
           },
         },
+        ProfileSummary: {
+          type: 'object',
+          properties: {
+            completed_events: { type: 'integer' },
+            pending_applications: { type: 'integer' },
+            upcoming_events: { type: 'array', items: { $ref: '#/components/schemas/Application' } },
+            latest_completed_events: { type: 'array', items: { $ref: '#/components/schemas/Application' } },
+            recent_applications: { type: 'array', items: { $ref: '#/components/schemas/Application' } },
+            points_summary: { $ref: '#/components/schemas/PointsSummary' },
+            badges_summary: {
+              type: 'object',
+              properties: {
+                earned_count: { type: 'integer' },
+                total_count: { type: 'integer' },
+                earned_badges: { type: 'array', items: { $ref: '#/components/schemas/Badge' } },
+                next_badge: {
+                  nullable: true,
+                  allOf: [{ $ref: '#/components/schemas/Badge' }],
+                  properties: {
+                    progress_percent: { type: 'integer' },
+                    remaining_hours: { type: 'number' },
+                  },
+                },
+              },
+            },
+          },
+        },
         PointsAnalytics: {
           type: 'object',
           properties: {
@@ -457,6 +502,14 @@ const options: swaggerJsdoc.Options = {
             { name: 'month', in: 'query', schema: { type: 'string', example: '2026-05' }, description: 'Tháng (YYYY-MM), mặc định tháng hiện tại' },
           ],
           responses: { 200: { description: 'OK', content: { 'application/json': { schema: { allOf: [{ $ref: '#/components/schemas/SuccessResponse' }, { properties: { data: { $ref: '#/components/schemas/PointsSummary' } } }] } } } } },
+        },
+      },
+      '/users/me/profile-summary': {
+        get: {
+          tags: ['Users'],
+          summary: 'Tổng hợp dữ liệu cho trang hồ sơ cá nhân',
+          security: [{ BearerAuth: [] }],
+          responses: { 200: { description: 'OK', content: { 'application/json': { schema: { allOf: [{ $ref: '#/components/schemas/SuccessResponse' }, { properties: { data: { $ref: '#/components/schemas/ProfileSummary' } } }] } } } } },
         },
       },
       '/users/{id}/badges': {

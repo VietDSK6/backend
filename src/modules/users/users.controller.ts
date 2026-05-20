@@ -22,7 +22,7 @@ export const updateMe = async (req: Request, res: Response, next: NextFunction) 
 
 export const getById = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = await usersService.getById(req.params.id as string);
+    const user = await usersService.getById(req.params.id as string, req.user);
     sendSuccess(res, user);
   } catch (error) {
     next(error);
@@ -89,6 +89,15 @@ export const getMyPointsSummary = async (req: Request, res: Response, next: Next
   try {
     const month = req.query.month as string | undefined;
     const summary = await usersService.getMyPointsSummary(req.user!.id, month);
+    sendSuccess(res, summary);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getProfileSummary = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const summary = await usersService.getProfileSummary(req.user!.id);
     sendSuccess(res, summary);
   } catch (error) {
     next(error);
