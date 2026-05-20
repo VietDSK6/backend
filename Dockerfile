@@ -32,5 +32,5 @@ COPY --from=builder /app/dist ./dist
 
 EXPOSE 4000
 
-# Run db push to forcefully sync schema, then start the server
-CMD npx prisma db push && node dist/app.js
+# Apply committed migrations, then start the server
+CMD npx prisma migrate deploy && node dist/app.js
