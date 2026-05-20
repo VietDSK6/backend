@@ -12,6 +12,7 @@ router.use(authenticate);
 // Student
 router.post('/', requireRole('STUDENT'), validate(applySchema), applicationsController.apply);
 router.get('/my', requireRole('STUDENT'), applicationsController.getMyApplications);
+router.patch('/:id/cancel', requireRole('STUDENT'), applicationsController.cancel);
 
 // Admin or Event Manager
 router.patch('/:id/approve', applicationsController.approve);

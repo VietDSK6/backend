@@ -90,7 +90,7 @@ export const list = async (query: ListEventsQuery) => {
       orderBy: { created_at: 'desc' },
       include: {
         admin: { select: { id: true, full_name: true, avatar_url: true } },
-        _count: { select: { applications: true } },
+        _count: { select: { applications: { where: { status: { in: ['APPROVED', 'COMPLETED'] } } } } },
       },
     }),
     prisma.event.count({ where }),
@@ -111,20 +111,30 @@ export const list = async (query: ListEventsQuery) => {
 };
 
 export const getById = async (id: string, userId?: string) => {
-  const [event, application] = await Promise.all([
+  const [event, application, applicationCounts] = await Promise.all([
     prisma.event.findUnique({
       where: { id },
       include: {
         admin: { select: { id: true, full_name: true, avatar_url: true } },
-        _count: { select: { applications: { where: { status: { in: ['PENDING', 'APPROVED', 'COMPLETED'] } } } } },
+        _count: { select: { applications: { where: { status: { in: ['APPROVED', 'COMPLETED'] } } } } },
       },
     }),
     userId
       ? prisma.application.findFirst({
           where: { event_id: id, student_id: userId },
-          select: { id: true },
+          select: {
+            id: true,
+            status: true,
+            applied_at: true,
+            updated_at: true,
+          },
         })
       : Promise.resolve(null),
+    prisma.application.groupBy({
+      by: ['status'],
+      where: { event_id: id },
+      _count: { status: true },
+    }),
   ]);
 
   if (!event) throw new AppError('Sự kiện không tồn tại', 404);
@@ -137,7 +147,26 @@ export const getById = async (id: string, userId?: string) => {
     else dynamicStatus = 'COMPLETED';
   }
 
-  return { ...event, status: dynamicStatus, is_applied: application !== null };
+  const countsByStatus = applicationCounts.reduce(
+    (counts, item) => ({ ...counts, [item.status.toLowerCase()]: item._count.status }),
+    {
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      completed: 0,
+      cancelled: 0,
+    },
+  );
+  const activeSlots = countsByStatus.pending + countsByStatus.approved;
+
+  return {
+    ...event,
+    status: dynamicStatus,
+    is_applied: application !== null && application.status !== 'CANCELLED',
+    my_application: application,
+    application_counts: countsByStatus,
+    available_slots: Math.max(event.max_slots - activeSlots, 0),
+  };
 };
 
 export const create = async (

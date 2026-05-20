@@ -46,3 +46,12 @@ export const complete = async (req: Request, res: Response, next: NextFunction) 
     next(error);
   }
 };
+
+export const cancel = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const application = await applicationsService.cancel(req.params.id as string, req.user!.id);
+    sendSuccess(res, application, 'Đã huỷ đăng ký');
+  } catch (error) {
+    next(error);
+  }
+};

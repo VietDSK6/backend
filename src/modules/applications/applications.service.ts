@@ -4,14 +4,19 @@ import { checkAndAssignBadges } from '../../services/badge.service';
 import { sendApprovalEmail, sendRejectionEmail } from '../../services/email.service';
 
 export const apply = async (studentId: string, eventId: string) => {
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: { managers: { select: { id: true } }, admin: { select: { id: true } } },
+  });
   if (!event) throw new AppError('Sự kiện không tồn tại', 404);
 
   // Check duplicate
   const existing = await prisma.application.findUnique({
     where: { event_id_student_id: { event_id: eventId, student_id: studentId } },
   });
-  if (existing) throw new AppError('Bạn đã đăng ký sự kiện này rồi', 409);
+  if (existing && existing.status !== 'CANCELLED') {
+    throw new AppError('Bạn đã đăng ký sự kiện này rồi', 409);
+  }
 
   // Check slots
   const takenSlots = await prisma.application.count({
@@ -21,9 +26,29 @@ export const apply = async (studentId: string, eventId: string) => {
     throw new AppError('Sự kiện đã hết chỗ', 400);
   }
 
-  return prisma.application.create({
-    data: { event_id: eventId, student_id: studentId },
-  });
+  const application = existing
+    ? await prisma.application.update({
+        where: { id: existing.id },
+        data: { status: 'PENDING', applied_at: new Date() },
+      })
+    : await prisma.application.create({
+        data: { event_id: eventId, student_id: studentId },
+      });
+
+  const recipientIds = Array.from(new Set([event.admin.id, ...event.managers.map((manager) => manager.id)]));
+  if (recipientIds.length > 0) {
+    await prisma.notification.createMany({
+      data: recipientIds.map((userId) => ({
+        user_id: userId,
+        title: 'Có đơn đăng ký mới',
+        message: `Có sinh viên vừa đăng ký sự kiện "${event.title}".`,
+        type: 'APPLICATION_CREATED',
+        link: `/events/${event.id}/applications`,
+      })),
+    });
+  }
+
+  return application;
 };
 
 export const getMyApplications = async (studentId: string) => {
@@ -59,6 +84,7 @@ export const approve = async (applicationId: string, userId: string, userRole: s
       title: 'Đơn được duyệt',
       message: `Đơn đăng ký sự kiện "${updated.event.title}" đã được duyệt!`,
       type: 'APPLICATION_APPROVED',
+      link: `/events/${updated.event_id}`,
     },
   });
 
@@ -88,6 +114,7 @@ export const reject = async (applicationId: string, userId: string, userRole: st
       title: 'Đơn bị từ chối',
       message: `Đơn đăng ký sự kiện "${updated.event.title}" đã bị từ chối.`,
       type: 'APPLICATION_REJECTED',
+      link: `/my-applications`,
     },
   });
 
@@ -124,7 +151,39 @@ export const complete = async (applicationId: string, userId: string, userRole: 
   // Check for new badges
   await checkAndAssignBadges(app.student_id);
 
+  await prisma.notification.create({
+    data: {
+      user_id: app.student_id,
+      title: 'Đơn đã hoàn thành',
+      message: `Bạn đã hoàn thành sự kiện "${updated.event.title}".`,
+      type: 'APPLICATION_COMPLETED',
+      link: `/my-applications`,
+    },
+  });
+
   return updated;
+};
+
+export const cancel = async (applicationId: string, studentId: string) => {
+  const application = await prisma.application.findUnique({
+    where: { id: applicationId },
+    include: { event: true },
+  });
+  if (!application) throw new AppError('Đơn đăng ký không tồn tại', 404);
+  if (application.student_id !== studentId) throw new AppError('Không có quyền huỷ đơn này', 403);
+  if (!['PENDING', 'APPROVED'].includes(application.status)) {
+    throw new AppError('Chỉ có thể huỷ đơn đang chờ duyệt hoặc đã duyệt', 400);
+  }
+
+  return prisma.application.update({
+    where: { id: applicationId },
+    data: { status: 'CANCELLED' },
+    include: {
+      event: {
+        select: { id: true, title: true, start_date: true, end_date: true, status: true, cover_image: true },
+      },
+    },
+  });
 };
 
 // ─── Helper ──────────────────────────────────────────

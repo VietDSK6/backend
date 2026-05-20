@@ -113,6 +113,7 @@ enum ApplicationStatus {
   APPROVED
   REJECTED
   COMPLETED
+  CANCELLED
 }
 
 // ─── Reviews ─────────────────────────────────────────
@@ -180,6 +181,7 @@ model Notification {
   message    String
   is_read    Boolean  @default(false)
   type       String
+  link       String?
   created_at DateTime @default(now())
 
   user  User               @relation(fields: [user_id], references: [id])

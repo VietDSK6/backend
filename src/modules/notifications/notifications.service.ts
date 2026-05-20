@@ -60,8 +60,9 @@ export const sendNotification = async (data: {
   title: string;
   message: string;
   type?: string;
+  link?: string;
 }) => {
-  const { target, title, message, type = 'SYSTEM' } = data;
+  const { target, title, message, type = 'SYSTEM', link } = data;
   const userIds = data.userIds ?? data.user_ids;
 
   let targetUserIds: string[] = [];
@@ -90,6 +91,7 @@ export const sendNotification = async (data: {
           title,
           message,
           type,
+          link,
         })),
       },
     },
